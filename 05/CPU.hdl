@@ -39,5 +39,49 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+
+
+
+    //Mux to A register
+    Mux16(a=instruction, b=ALUout, sel=instruction[15], out=AMuxOut);
+    //A register 
+    //using the first d bit to decide if loading to A
+    And(a=instruction[5], b=instruction[15], out=Aload);
+    Not(in=instruction[15], out=notMSB);
+    Or(a=Aload, b=notMSB, out=Aload2);
+    ARegister(in=AMuxOut, load=Aload2, out=Aout, out[0..14]=addressM);
+
+    //Mux to ALU
+    //If a instruction is 1, load input from memory, otherwise load instruction from A reg
+    //otherwise load instruction from A register into ALU
+    Mux16(a=Aout, b=inM, sel=instruction[12], out=ALUMuxOut);
+
+    //D register
+    //If middle destination bit is true, load value into D register
+    And(a=instruction[4], b=instruction[15], out=Dload);
+    DRegister(in=ALUout, load=Dload, out=Dout);
+
+    //ALU
+    //Perform arithmetic or logical operations based on control bits
+    ALU(x=Dout, y=ALUMuxOut, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=outM, out=ALUout, zr=zero, ng=neg);
+
+    //Register to WriteM
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    //PC
+    //Any jump bits set to true? Is it an instruction?
+    //When does ALU output say to jump?
+    Not(in=NegOrZero, out=NotNegOrZero);
+    And(a=instruction[2], b=neg, out=JLT);
+    Or(a=neg, b=zero, out=NegOrZero);
+    Not(in=neg, out=pos);
+    And(a=instruction[0], b=NotNegOrZero, out=JGT);
+    And(a=instruction[1], b=zero, out=JEQ);
+    //Was initial word an instruction? If so, did it say to jump?
+    Or8Way(in[0]=JLT, in[1]=JGT, in[2]=JEQ, out=orjump);
+    And(a=orjump, b=instruction[15], out=jump);
+    //If not jumping, continue through instructions
+    PC(in=Aout, load=jump, inc=true, reset=reset, out[0..14]=pc);
+
+
 }
